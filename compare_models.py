@@ -48,7 +48,7 @@ def make_models():
         "Random Forest":sklearn_predictor(Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
             ("model", RandomForestClassifier(
-                n_estimators=100, max_depth=4, min_samples_leaf=5
+                n_estimators=100, max_depth=4, min_samples_leaf=5, random_state=42
             ))
         ])),
         "LightGBM ranker (graded)": ranker_predictor(RANKER_PARAMS, graded=True),

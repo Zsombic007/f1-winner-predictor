@@ -11,7 +11,7 @@ def fit_ranker(train, params, graded = True):
     labels = graded_label(train) if graded else train["winner"]
     group_sizes = train.groupby("race_id", sort=False).size().to_numpy()
 
-    ranker = LGBMRanker(objective="lambdarank", random_state=42, verbose=1, **params)
+    ranker = LGBMRanker(objective="lambdarank", random_state=42, verbose=-1, **params)
     ranker.fit(train[FEATURES], labels, group=group_sizes)
     return ranker
 
