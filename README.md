@@ -90,7 +90,7 @@ Top-pick hit rate (winner correctly predicted):
 
 **Probability each model gave to the actual winner, per round** (how "surprised" the model was)
 
-![Winner probability](plots/winner_probability.png)
+![Winner probability](plots/winner_probablility.png)
 
 **Winner within the top-k predictions**
 
