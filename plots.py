@@ -25,11 +25,12 @@ def plot_hit_rates(scored_by_model, test):
     rates["Pole-sitter"] = test[test["grid_position"] == 1]["winner"].mean()
     rates["Random guess"] = (1 / test.groupby("race_id").size()).mean()
 
-    fig, ax = plt.subplots(figsize=(8,4))
-    bars = ax.bar(rates.keys(), [v * 100 for v in rates.values()])
-    ax.bar_label(bars, fmt="%.1f%%")
-    ax.set_ylabel("Hit rate (%)")
-    ax.set_ylim(0,100)
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    bars = ax.barh(list(rates.keys()), [v * 100 for v in rates.values()])
+    ax.bar_label(bars, fmt="%.1f%%", padding=3)
+    ax.set_xlabel("Hit rate (%)")
+    ax.set_xlim(0, 110)
+    ax.invert_yaxis()
     ax.set_title(f"{TEST_SEASON}: how often is the winner predicted?")
     fig.tight_layout()
     fig.savefig(PLOT_DIR / "hit_rates.png", dpi=150)
@@ -80,7 +81,7 @@ def main():
     train = data[data["season"] < TEST_SEASON]
     test = data[data["season"] == TEST_SEASON]
     scored_by_model = {
-        name: predict(model, train, test) for name, model in make_models().items()
+        name: run(train, test) for name, run in make_models().items()
     }
     plot_hit_rates(scored_by_model, test)
     plot_winner_probability(scored_by_model)

@@ -1,41 +1,67 @@
 import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from train_predictor import FEATURES, normalize_within_race
+from ranker import fit_ranker, predict_ranker
 
 DATA_PATH = "data/f1_features.csv"
 TEST_SEASONS = [2023, 2024, 2025]
 
+RANKER_PARAMS=dict(
+    n_estimators=100, learning_rate=0.05, num_leaves=4, max_depth=3,
+    min_child_samples=20, subsample=0.8, subsample_freq=1,
+    colsample_bytree=0.8, reg_lambda=1.0
+)
+
+def sklearn_predictor(pipeline):
+    def run(train, test):
+        pipeline.fit(train[FEATURES], train["winner"])
+        positive = list(pipeline.classes_).index(1)
+        raw = pipeline.predict_proba(test[FEATURES])[:, positive]
+        return normalize_within_race(test, raw)
+    return run
+
+def ranker_predictor(params, graded):
+    def run(train, test):
+        ranker = fit_ranker(train, params, graded=graded)
+        return predict_ranker(ranker, test)
+    return run
 
 def make_models():
     return {
-        "Logistic regression": Pipeline([
+        "Logistic regression": sklearn_predictor(Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
             ("scaler", StandardScaler()),
             ("model", LogisticRegression(max_iter=1000)),
-        ]),
-        "Gradient boosting": Pipeline([
+        ])),
+        "Gradient boosting": sklearn_predictor(Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
             ("model", GradientBoostingClassifier(
                 n_estimators=100, learning_rate=0.05,
                 max_depth=2, random_state=42,
             )),
-        ]),
+        ])),
+        "Random Forest":sklearn_predictor(Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("model", RandomForestClassifier(
+                n_estimators=100, max_depth=4, min_samples_leaf=5
+            ))
+        ])),
+        "LightGBM ranker (graded)": ranker_predictor(RANKER_PARAMS, graded=True),
+        "LightGBM ranker (winners only)": ranker_predictor(RANKER_PARAMS, graded=False)
     }
 
 
-def evaluate(model, train, test):
-    model.fit(train[FEATURES], train["winner"])
-    positive = list(model.classes_).index(1)
-    raw = model.predict_proba(test[FEATURES])[:, positive]
-    scored = normalize_within_race(test, raw)
+def evaluate(run, train, test):
+    
+    scored = run(train, test)
 
     top_picks = (
-        scored.sort_values(["race_id", "win_probability"], ascending=[True, False])
+        scored.sort_values(["race_id", "win_probability", "grid_position"], ascending=[True, False, True])
         .drop_duplicates("race_id", keep="first")
     )
     winners = scored[scored["winner"] == 1]
