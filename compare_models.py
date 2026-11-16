@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler
 
 from train_predictor import FEATURES, normalize_within_race
 from ranker import fit_ranker, predict_ranker
+from conditional_logit import conditional_logit_predictor  # AI-generated model
 
 DATA_PATH = "data/f1_features.csv"
 TEST_SEASONS = [2023, 2024, 2025]
@@ -52,7 +53,8 @@ def make_models():
             ))
         ])),
         "LightGBM ranker (graded)": ranker_predictor(RANKER_PARAMS, graded=True),
-        "LightGBM ranker (winners only)": ranker_predictor(RANKER_PARAMS, graded=False)
+        "LightGBM ranker (winners only)": ranker_predictor(RANKER_PARAMS, graded=False),
+        "Conditional logit (AI)": conditional_logit_predictor(l2=1.0),
     }
 
 

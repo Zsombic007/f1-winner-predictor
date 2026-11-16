@@ -4,7 +4,7 @@ Can a simple machine-learning model predict the winner of a Formula 1 race **bef
 
 This project downloads race results from the Jolpica-F1 API, builds leakage-free features, and compares several models with a time-aware evaluation on the 2023, 2024 and 2025 seasons.
 
-**Short answer:** not convincingly. Over 70 test races the best model (random forest, 60.0%) is one race ahead of the pole-sitter baseline (58.6%), which is well within noise. See [Results](#results).
+**Short answer:** not convincingly. Over 70 test races the best models (random forest and the AI-added conditional logit, both 60.0%) are one race ahead of the pole-sitter baseline (58.6%), which is well within noise. See [Results](#results).
 
 ## Data
 
@@ -33,7 +33,8 @@ Run the scripts in this order:
 | 3 | `python naive_baseline.py` | Prints the "always predict no winner" accuracy and the pole-sitter hit rate. |
 | 4 | `python train_predictor.py` | Trains one logistic-regression model, tests on 2025, prints the latest race's win probabilities. |
 | 5 | `python compare_models.py` | Compares all models over 2023, 2024 and 2025. |
-| 6 | `python plots.py` | Saves the plots in `plots/` (2025 season). |
+| 6 | `python conditional_logit.py` | 🤖 Runs only the AI-generated conditional-logit model and prints its coefficients. |
+| 7 | `python plots.py` | Saves the plots in `plots/` (2025 season). |
 
 ## Method
 
@@ -56,6 +57,7 @@ The rolling means use `shift(1)`, so a race never sees its own result (no data l
 - Random forest
 - LightGBM ranker with graded labels (1st/2nd/3rd get 3/2/1 relevance)
 - LightGBM ranker with winner-only labels
+- 🤖 **Conditional logit** (AI-generated, see [below](#-ai-generated-model-conditional-logit))
 
 The per-driver classifiers' probabilities are normalized within each race so they sum to 100%. For the rankers, scores go through a softmax within each race. These are **pseudo-probabilities, not calibrated ones**. Ties are broken by grid position.
 
@@ -73,13 +75,14 @@ Top-pick hit rate (winner correctly predicted):
 | Random forest | 18 (81.8%) | 10 (41.7%) | 14 (58.3%) | **42 (60.0%)** |
 | LightGBM ranker (graded) | 16 (72.7%) | 12 (50.0%) | 12 (50.0%) | **40 (57.1%)** |
 | LightGBM ranker (winners only) | 17 (77.3%) | 9 (37.5%) | 13 (54.2%) | **39 (55.7%)** |
+| 🤖 Conditional logit (AI) | 19 (86.4%) | 12 (50.0%) | 11 (45.8%) | **42 (60.0%)** |
 
 ### What the numbers say
 
-- **No model clearly beats the pole-sitter.** The best (random forest) is one race ahead over 70 races. The differences between models are 1–5 races, which is noise at this sample size.
+- **No model clearly beats the pole-sitter.** The best (random forest and conditional logit, tied) are one race ahead over 70 races. The differences between models are 1–5 races, which is noise at this sample size.
 - **The ranking changes every season.** Logistic regression is the best model in 2023 and the worst in 2025. A single season is not enough to pick a winner, which is why the comparison uses three.
 - **Season character matters.** 2023 was dominated by one team, which makes the "recent form" features very informative; in 2024 and 2025 the winners were spread across teams and every method gets harder.
-- **The top-3 is much easier than the top-1.** In 2025 the actual winner was inside the model's top 3 in 100% of races for most models (91.7% for logistic regression), see `plots/top_k.png`. The hard part is separating the best candidate from the next two.
+- **The top-3 is much easier than the top-1.** In 2025 the actual winner was inside the model's top 3 in 100% of races for most models (91.7% for logistic regression and the conditional logit), see `plots/top_k.png`. The hard part is separating the best candidate from the next two.
 - **The simplest model is competitive.** Logistic regression ties the pole-sitter overall, so more complex models are not justified by this data.
 
 ### Plots (2025 season)
@@ -95,6 +98,18 @@ Top-pick hit rate (winner correctly predicted):
 **Winner within the top-k predictions**
 
 ![Top-k](plots/top_k.png)
+
+## 🤖 AI-generated model: conditional logit
+
+> **Disclosure:** this model (`conditional_logit.py`) and this README section were written by an AI assistant (Claude, by Anthropic, through Claude Code), not by the project author. The file has a header that says so, and the model is labelled "(AI)" in the comparison output and plots.
+
+**Idea.** The other classifiers ask "does this driver win?" for each driver on their own and normalize the scores afterwards. A conditional logit (McFadden's discrete-choice model) asks the real question: *which one driver in this race wins?*
+
+$$P(\text{driver } i \text{ wins race } r) = \frac{e^{x_i \cdot w}}{\sum_{j \in r} e^{x_j \cdot w}}$$
+
+The softmax runs over a single race's field, so the probabilities add up to 100% per race by construction, and the model learns only from comparisons between drivers in the same race. The weights are fitted by L2-regularized maximum likelihood (L-BFGS, analytic gradient) on the same median-imputed, standardized features as the other models. It only needs numpy and scipy.
+
+**Result.** 42/70 (60.0%), tied with the random forest for the best total and one race ahead of the pole-sitter. That is still noise at this sample size. It gives the highest average probability to the actual winner in 2023 (65.0%) and 2024 (33.8%). In 2025, like plain logistic regression, it does worse than the tree models. Its coefficients are easy to read: the 2025 fit weights grid position (−1.53) and the driver's recent points (+1.02) most heavily.
 
 ## Limitations
 
@@ -122,6 +137,7 @@ train_predictor.py   # single-model training + shared helpers
 ranker.py            # LightGBM learning-to-rank helpers
 compare_models.py    # multi-season model comparison
 plots.py             # figures in plots/
+conditional_logit.py # 🤖 AI-generated conditional-logit (softmax-within-race) model
 ```
 
 ## Acknowledgements
